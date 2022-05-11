@@ -158,7 +158,7 @@ class Post_Handler {
 			return;
 		}
 
-		$default_url = apply_filters( 'share_on_indienews_default_url', 'https://news.indieweb.org/en' );
+		$default_url = apply_filters( 'share_on_indienews_default_url', self::DEFAULT_URL );
 
 		if ( isset( $_POST['share_on_indienews'] ) && ! post_password_required( $post ) ) {
 			// If sharing enabled and post not password-protected.
