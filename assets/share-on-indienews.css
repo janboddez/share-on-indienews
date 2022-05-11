@@ -1,0 +1,7 @@
+#share-on-indienews .description {
+	margin: 1em 0 1px;
+}
+
+#share-on-indienews .url .ellipsis::after {
+	content: "…";
+}
