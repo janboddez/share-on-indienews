@@ -62,10 +62,12 @@ class Post_Handler {
 	public function render_meta_box( $post ) {
 		wp_nonce_field( basename( __FILE__ ), 'share_on_indienews_nonce' );
 
+		$url = get_post_meta( $post->ID, '_share_on_indienews_url', true );
+
 		$check = array( '', '1' );
 
 		if ( apply_filters( 'share_on_indienews_optin', false ) ) {
-			$check = array( '1' ); // Make sharing opt-in.
+			$check = array( '1' ); // Make sharing opt-in, i.e., only (pre-)check the box if sharing was enabled explicitly.
 		}
 		?>
 		<label>
@@ -73,9 +75,8 @@ class Post_Handler {
 			<?php esc_html_e( 'Share on IndieWeb News', 'share-on-indienews' ); ?>
 		</label>
 		<?php
-		$url = get_post_meta( $post->ID, '_share_on_indienews_url', true );
 
-		if ( '' !== $url && false !== wp_http_validate_url( $url ) ) :
+		if ( '' !== $url && apply_filters( 'share_on_indienews_default_url', self::DEFAULT_URL ) !== $url && false !== wp_http_validate_url( $url ) ) :
 			$url_parts = wp_parse_url( $url );
 
 			$display_url  = '<span class="screen-reader-text">' . $url_parts['scheme'] . '://';
@@ -148,28 +149,18 @@ class Post_Handler {
 			return;
 		}
 
-		if ( 'publish' !== $new_status ) {
-			// Status is something other than `publish`.
-			return;
-		}
+		$is_enabled = isset( $_POST['share_on_indienews'] ) && ! post_password_required( $post ) ? true : false;
 
-		if ( post_password_required( $post ) ) {
-			// Post is password-protected.
-			return;
-		}
+		// This filter allows sharing from, e.g., a mobile app.
+		if ( apply_filters( 'share_on_indienews_enabled', $is_enabled, $post ) ) {
+			update_post_meta( $post->ID, '_share_on_indienews', '1' );
 
-		$default_url = apply_filters( 'share_on_indienews_default_url', self::DEFAULT_URL );
-
-		if ( isset( $_POST['share_on_indienews'] ) && ! post_password_required( $post ) ) {
-			// If sharing enabled and post not password-protected.
-			if ( '' === get_post_meta( $post->ID, '_share_on_indienews_url', true ) ) {
-				update_post_meta( $post->ID, '_share_on_indienews_url', $default_url );
-			}
+			// For the webmention to succeed, we're going to have to display
+			// the following URL on the front end. So we set it here, before any
+			// possible caching kicks in.
+			update_post_meta( $post->ID, '_share_on_indienews_url', apply_filters( 'share_on_indienews_default_url', self::DEFAULT_URL ) ); // Will be updated later.
 		} else {
-			if ( get_post_meta( $post->ID, '_share_on_indienews_url', true ) === $default_url ) {
-				// Disable sharing (for new posts).
-				delete_post_meta( $post->ID, '_share_on_indienews_url' );
-			}
+			update_post_meta( $post->ID, '_share_on_indienews', '0' );
 		}
 	}
 
@@ -200,8 +191,10 @@ class Post_Handler {
 	public function send_webmention( $post_id ) {
 		$post = get_post( $post_id );
 
-		if ( ! in_array( $post->post_type, (array) apply_filters( 'share_on_indienews_post_types', self::DEFAULT_POST_TYPES ), true ) ) {
-			// Post type no longer supported.
+		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_indienews', true ) ? true : false );
+
+		if ( ! apply_filters( 'share_on_indienews_enabled', $is_enabled, $post ) ) {
+			// Disabled for this post.
 			return;
 		}
 
@@ -215,11 +208,19 @@ class Post_Handler {
 			return;
 		}
 
-		$default_url = apply_filters( 'share_on_indienews_default_url', self::DEFAULT_URL );
-		$url         = get_post_meta( $post->ID, '_share_on_indienews_url', true );
+		if ( ! in_array( $post->post_type, (array) apply_filters( 'share_on_indienews_post_types', self::DEFAULT_POST_TYPES ), true ) ) {
+			// Post type no longer supported.
+			return;
+		}
+
+		$url = get_post_meta( $post->ID, '_share_on_indienews_url', true );
+
+		// We could check this against the default URL to disable sharing more
+		// than once, i.e., disable updates. But IndieNews actually supports
+		// updates, so leave as is.
 
 		if ( empty( $url ) ) {
-			// Nothing to do.
+			// Nothing we can do.
 			return;
 		}
 
@@ -228,16 +229,10 @@ class Post_Handler {
 			return;
 		}
 
-		if ( $url !== $default_url ) {
-			// Prevent posts from being shared more than once. We should
-			// probably take this out afterward, so that post updates are
-			// properly synced.
-			return;
-		}
-
 		$endpoint = $this->discover_endpoint( $url );
 
 		if ( empty( $endpoint ) ) {
+			// No endpoint found.
 			return;
 		}
 
