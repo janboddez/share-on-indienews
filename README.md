@@ -1,7 +1,7 @@
 # Share on IndieNews
 Automatically submit WordPress posts to [IndieNews](https://news.indieweb.org/).
 
-In your theme (or elsewhere), use `get_post_meta( $post->ID, '_share_on_indienews', true )` to retrieve the resulting syndication URL.
+In your theme (or elsewhere), use `get_post_meta( $post->ID, '_share_on_indienews_url', true )` to retrieve the resulting syndication URL.
 
 There's no options page, but you can change the language-specific endpoint using the `share_on_indienews_default_url` filter, e.g.:
 ```
