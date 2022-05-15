@@ -17,3 +17,17 @@ add_filter( 'share_on_indienews_post_types' , function( $post_types ) {
   return $post_types;
 } );
 ```
+Sharing can be made opt-in:
+```
+add_filter( 'share_on_indienews_optin', '__return_true' );
+```
+Or automated, based on, e.g., the presence of an "IndieWeb" tag:
+```
+add_filter( 'share_on_indienews_enabled', function( $is_enabled, $post ) {
+  if ( $post->has_tag( 'indieweb' ) ) {
+    return true;
+  }
+
+  return $is_enabled;
+}, 10, 2 );
+```
